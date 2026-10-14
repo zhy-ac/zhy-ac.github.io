@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="theme-light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>鼠标躲避球</title>
+<style>
+  /* ================= 主题变量 ================= */
+  html.theme-light {
+    --bg-1: #ffffff;
+    --bg-2: #eef2f9;
+    --bg-3: #e4eaf5;
+    --text: #1f2937;
+    --text-muted: #8a94a6;
+    --text-soft: #a3adbd;
+    --text-strong: #6b7280;
+    --card-bg: #ffffff;
+    --card-shadow: rgba(24, 40, 80, 0.13);
+    --card-shadow-sm: rgba(24, 40, 80, 0.04);
+    --pill-bg: rgba(255, 255, 255, 0.82);
+    --pill-shadow: rgba(24, 40, 80, 0.08);
+    --board-bg: #ffffff;
+    --board-shadow: rgba(24, 40, 80, 0.13);
+    --board-shadow-sm: rgba(24, 40, 80, 0.05);
+    --overlay-bg: rgba(238, 242, 249, 0.66);
+    --btn-bg: #1f2937;
+    --btn-text: #ffffff;
+    --btn-shadow: rgba(31, 41, 55, 0.22);
+    --btn-shadow-h: rgba(31, 41, 55, 0.28);
+    --btn-hover: #111827;
+    --ctrl-bg: rgba(255, 255, 255, 0.82);
+    --ctrl-shadow: rgba(24, 40, 80, 0.08);
+    --ctrl-hover: #ffffff;
+    --score-g1: #4b5563;
+    --score-g2: #1f2937;
+  }
+
+  html.theme-dark {
+    --bg-1: #1e293b;
+    --bg-2: #0f172a;
+    --bg-3: #020617;
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --text-soft: #64748b;
+    --text-strong: #cbd5e1;
+    --card-bg: #1e293b;
+    --card-shadow: rgba(0, 0, 0, 0.55);
+    --card-shadow-sm: rgba(0, 0, 0, 0.25);
+    --pill-bg: rgba(30, 41, 59, 0.82);
+    --pill-shadow: rgba(0, 0, 0, 0.35);
+    --board-bg: #0b1220;
+    --board-shadow: rgba(0, 0, 0, 0.6);
+    --board-shadow-sm: rgba(0, 0, 0, 0.35);
+    --overlay-bg: rgba(2, 6, 23, 0.68);
+    --btn-bg: #e2e8f0;
+    --btn-text: #0f172a;
+    --btn-shadow: rgba(226, 232, 240, 0.18);
+    --btn-shadow-h: rgba(226, 232, 240, 0.28);
+    --btn-hover: #ffffff;
+    --ctrl-bg: rgba(30, 41, 59, 0.82);
+    --ctrl-shadow: rgba(0, 0, 0, 0.35);
+    --ctrl-hover: #334155;
+    --score-g1: #cbd5e1;
+    --score-g2: #f8fafc;
+  }
+
+  /* ================= 基础 ================= */
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html {
+    height: 100%;
+    background: radial-gradient(circle at 50% 40%, var(--bg-1) 0%, var(--bg-2) 55%, var(--bg-3) 100%);
+  }
+
+  body {
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans TC", sans-serif;
+    color: var(--text);
+    user-select: none;
+  }
+
+  body.playing #game { cursor: none; }
+
+  /* ================= 布局 ================= */
+  .app {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px;
+    padding: 16px;
+  }
+
+  .topbar {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 1024px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    z-index: 5;
+  }
+
+  .hud {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    pointer-events: none;
+  }
+
+  .pill {
+    display: flex; align-items: center; gap: 7px;
+    padding: 9px 17px;
+    border-radius: 999px;
+    background: var(--pill-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px var(--pill-shadow);
+    font-size: 13px;
+    color: var(--text-muted);
+    letter-spacing: .02em;
+    white-space: nowrap;
+    transition: background-color .25s ease, color .25s ease, box-shadow .25s ease;
+  }
+
+  .pill b {
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 12px;
+  }
+
+  /* ================= 控制按钮 ================= */
+  .controls {
+    display: flex; gap: 8px;
+    flex: 0 0 auto;
+  }
+
+  .ctrl-btn {
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    border: none; outline: none;
+    border-radius: 999px;
+    background: var(--ctrl-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px var(--ctrl-shadow);
+    color: var(--text);
+    font-size: 15px;
+    font-family: inherit;
+    font-weight: 600;
+    letter-spacing: .02em;
+    cursor: pointer;
+    transition: background-color .2s ease, transform .2s cubic-bezier(.34, 1.56, .64, 1),
+                box-shadow .2s ease, color .25s ease;
+  }
+  .ctrl-btn:hover {
+    background: var(--ctrl-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px var(--ctrl-shadow);
+  }
+  .ctrl-btn:active { transform: translateY(0) scale(.95); }
+
+  /* ================= 场地 ================= */
+  .stage {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .board {
+    position: relative;
+    line-height: 0;
+    border-radius: 28px;
+    box-shadow: 0 24px 70px var(--board-shadow), 0 2px 8px var(--board-shadow-sm);
+    transition: box-shadow .25s ease, background-color .25s ease;
+  }
+
+  #game {
+    display: block;
+    border-radius: 28px;
+    background: var(--board-bg);
+    transition: background-color .25s ease;
+  }
+
+  /* ================= 新纪录徽章 ================= */
+  .badge {
+    position: absolute; top: 18px; left: 50%;
+    transform: translate(-50%, -18px) scale(.9);
+    padding: 10px 24px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #fbbf24, #f97316);
+    color: #fff;
+    font-size: 14px; font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1;
+    box-shadow: 0 10px 30px rgba(249, 115, 22, .35);
+    opacity: 0;
+    pointer-events: none;
+    transition: all .35s cubic-bezier(.34, 1.56, .64, 1);
+    z-index: 8;
+    white-space: nowrap;
+  }
+  .badge.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+
+  /* ================= 遮罩卡片 ================= */
+  .overlay {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    background: var(--overlay-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .28s ease, background-color .25s ease;
+    z-index: 10;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+
+  .card {
+    width: 100%;
+    max-width: 390px;
+    padding: 42px 38px 36px;
+    border-radius: 32px;
+    background: var(--card-bg);
+    text-align: center;
+    box-shadow: 0 24px 70px var(--card-shadow), 0 2px 8px var(--card-shadow-sm);
+    animation: pop .34s cubic-bezier(.34, 1.4, .64, 1);
+    transition: background-color .25s ease, color .25s ease, box-shadow .25s ease;
+  }
+
+  @keyframes pop {
+    from { transform: scale(.93) translateY(8px); opacity: 0; }
+    to   { transform: scale(1) translateY(0);     opacity: 1; }
+  }
+
+  .card .emoji { font-size: 42px; line-height: 1; margin-bottom: 14px; }
+
+  .card h1 {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    margin-bottom: 12px;
+    color: var(--text);
+    transition: color .25s ease;
+  }
+  .card h1.record {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .card .desc {
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--text-muted);
+    margin-bottom: 26px;
+    transition: color .25s ease;
+  }
+  .card .desc b { color: var(--text); font-weight: 700; }
+
+  .scoreBig {
+    font-size: 60px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+    background: linear-gradient(135deg, var(--score-g1), var(--score-g2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 8px;
+  }
+
+  button.main-btn {
+    border: none;
+    outline: none;
+    padding: 15px 42px;
+    border-radius: 999px;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: .05em;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 8px 22px var(--btn-shadow);
+    transition: transform .18s cubic-bezier(.34, 1.56, .64, 1),
+                box-shadow .18s ease, background-color .25s ease, color .25s ease;
+  }
+  button.main-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px var(--btn-shadow-h);
+    background: var(--btn-hover);
+  }
+  button.main-btn:active { transform: translateY(0) scale(.98); }
+
+  .best {
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--text-soft);
+    letter-spacing: .03em;
+    transition: color .25s ease;
+  }
+  .best b { color: var(--text-strong); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="topbar" id="topbar">
+    <div class="hud">
+      <div class="pill"><span data-i18n="score">分数</span><b id="score">0</b></div>
+      <div class="pill"><span data-i18n="best">最高</span><b id="best">0</b></div>
+      <div class="pill"><span data-i18n="balls">球数</span><b id="balls">0</b></div>
+      <div class="pill"><span data-i18n="next">下一个</span><b id="next">3.0s</b></div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl-btn" id="themeBtn" type="button" aria-label="Toggle theme">🌙</button>
+      <button class="ctrl-btn" id="langBtn"  type="button" aria-label="Switch language">中</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="board">
+      <canvas id="game"></canvas>
+      <div class="badge" id="recordBadge">🎉 新纪录！</div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 安全存储 ================= */
+  var storage = {
+    get: function (key) {
+      try { return window.localStorage.getItem(key); } catch (e) { return null; }
+    },
+    set: function (key, val) {
+      try { window.localStorage.setItem(key, val); } catch (e) {}
+    }
+  };
+
+  /* ================= 常量 ================= */
+  var FIELD        = 1024;  // 场地固定 1024 × 1024（逻辑坐标）
+  var PLAYER_R     = 10;    // 玩家视觉半径
+  var HIT_R        = 9;     // 玩家碰撞半径
+  var TICK         = 0.01;  // 每 0.01 秒 +1 分
+  var SPAWN_EVERY  = 0.01;     // 每 3 秒多一个球
+  var MIN_SPEED    = 165;   // 球的最小速度（防止碰撞后变得太慢）
+  var MAX_SPEED    = 480;   // 球的最大速度
+  var RESTITUTION  = 1.0;   // 球球碰撞恢复系数（1 = 完全弹性）
+  var COLLISION_ITER = 2;   // 每帧碰撞求解迭代次数（处理多球重叠）
+
+  var STORAGE_BEST = 'dodgeBallBest';
+  var STORAGE_THM  = 'dodgeBallTheme';
+  var STORAGE_LANG = 'dodgeBallLang';
+  var COLORS = ['#ff7a7a', '#ffb457', '#4ecdc4', '#5b8def', '#a78bfa', '#f472b6', '#38bdf8'];
+
+  /* ================= 文案 ================= */
+  var I18N = {
+    'zh-CN': {
+      htmlLang: 'zh-CN',
+      title: '鼠标躲避球',
+      score: '分数',
+      best: '最高',
+      balls: '球数',
+      next: '下一个',
+      newRecord: '🎉 新纪录！',
+      startTitle: '鼠标躲避球',
+      startDesc: '在 <b>{size} × {size}</b> 场地内移动鼠标躲开小球<br>每 <b>{every} 秒</b> 增加一个球 · 每 <b>0.01 秒</b> 得 1 分<br>球与球相撞会互相弹开',
+      startBtn: '开始游戏',
+      bestLabel: '历史最高分',
+      overTitle: '游戏结束',
+      recordTitle: '新纪录！',
+      overDesc: '历史最高分 <b>{best}</b>',
+      recordDesc: '恭喜！你刷新了自己的历史最高分',
+      restartBtn: '再来一局',
+      themeTip: '切换深浅色',
+      langTip: '切换语言'
+    },
+    'zh-TW': {
+      htmlLang: 'zh-TW',
+      title: '滑鼠躲避球',
+      score: '分數',
+      best: '最高',
+      balls: '球數',
+      next: '下一個',
+      newRecord: '🎉 新紀錄！',
+      startTitle: '滑鼠躲避球',
+      startDesc: '在 <b>{size} × {size}</b> 場地內移動滑鼠躲開小球<br>每 <b>{every} 秒</b> 增加一個球 · 每 <b>0.01 秒</b> 得 1 分<br>球與球相撞會互相彈開',
+      startBtn: '開始遊戲',
+      bestLabel: '歷史最高分',
+      overTitle: '遊戲結束',
+      recordTitle: '新紀錄！',
+      overDesc: '歷史最高分 <b>{best}</b>',
+      recordDesc: '恭喜！你刷新了歷史最高分',
+      restartBtn: '再來一局',
+      themeTip: '切換深淺色',
+      langTip: '切換語言'
+    },
+    'en': {
+      htmlLang: 'en',
+      title: 'Mouse Dodge',
+      score: 'Score',
+      best: 'Best',
+      balls: 'Balls',
+      next: 'Next',
+      newRecord: '🎉 New Record!',
+      startTitle: 'Mouse Dodge',
+      startDesc: 'Move your mouse to dodge the balls<br>inside a <b>{size} × {size}</b> field<br>A new ball every <b>{every}s</b> · <b>+1</b> point every <b>0.1s</b><br>Balls bounce off each other on contact',
+      startBtn: 'Start Game',
+      bestLabel: 'Best Score',
+      overTitle: 'Game Over',
+      recordTitle: 'New Record!',
+      overDesc: 'Best Score <b>{best}</b>',
+      recordDesc: 'Congratulations! You beat your best score',
+      restartBtn: 'Play Again',
+      themeTip: 'Toggle theme',
+      langTip: 'Switch language'
+    }
+  };
+
+  var LANGS      = ['zh-CN', 'zh-TW', 'en'];
+  var LANG_LABEL = { 'zh-CN': '中', 'zh-TW': '繁', 'en': 'EN' };
+
+  /* ================= 设置 ================= */
+  var settings = {
+    theme: storage.get(STORAGE_THM) || 'light',
+    lang:  storage.get(STORAGE_LANG) || 'zh-CN'
+  };
+  if (LANGS.indexOf(settings.lang) < 0) settings.lang = 'zh-CN';
+  if (settings.theme !== 'dark') settings.theme = 'light';
+
+  function t(key, params) {
+    var dict = I18N[settings.lang] || I18N['zh-CN'];
+    var str = dict[key];
+    if (str == null) str = I18N['zh-CN'][key] || key;
+    if (params) {
+      for (var k in params) {
+        if (Object.prototype.hasOwnProperty.call(params, k)) {
+          str = str.split('{' + k + '}').join(params[k]);
+        }
+      }
+    }
+    return str;
+  }
+
+  /* ================= DOM ================= */
+  var canvas   = document.getElementById('game');
+  var overlay  = document.getElementById('overlay');
+  var badge    = document.getElementById('recordBadge');
+  var topbar   = document.getElementById('topbar');
+  var themeBtn = document.getElementById('themeBtn');
+  var langBtn  = document.getElementById('langBtn');
+  var elScore  = document.getElementById('score');
+  var elBest   = document.getElementById('best');
+  var elBalls  = document.getElementById('balls');
+  var elNext   = document.getElementById('next');
+
+  if (!canvas || !canvas.getContext) {
+    alert('Canvas is not supported.');
+    return;
+  }
+  var ctx = canvas.getContext('2d');
+  if (!ctx) { alert('Canvas init failed.'); return; }
+
+  /* ================= 状态 ================= */
+  var dpr = 1;
+
+  var state = {
+    running: false,
+    score: 0,
+    best: 0,
+    balls: [],
+    mouse: { x: FIELD / 2, y: FIELD / 2 },
+    scoreAcc: 0,
+    spawnTimer: 0,
+    newRecord: false,
+    lastScore: 0,
+    lastRecord: false
+  };
+
+  var overlayMode = null;  // 'start' | 'over' | null
+  var ballCount = 0;
+
+  /* ================= 主题 ================= */
+  function applyTheme() {
+    var root = document.documentElement;
+    root.classList.toggle('theme-light', settings.theme === 'light');
+    root.classList.toggle('theme-dark',  settings.theme === 'dark');
+    themeBtn.textContent = settings.theme === 'light' ? '🌙' : '☀️';
+    themeBtn.title = t('themeTip');
+  }
+
+  /* ================= 语言 ================= */
+  function applyLang() {
+    var dict = I18N[settings.lang] || I18N['zh-CN'];
+    document.documentElement.lang = dict.htmlLang || 'zh-CN';
+    document.title = t('title');
+    langBtn.textContent = LANG_LABEL[settings.lang] || '中';
+    langBtn.title = t('langTip');
+    themeBtn.title = t('themeTip');
+
+    var els = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < els.length; i++) {
+      els[i].textContent = t(els[i].getAttribute('data-i18n'));
+    }
+    badge.textContent = t('newRecord');
+
+    renderOverlay();
+    resize();
+  }
+
+  /* ================= 尺寸 ================= */
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = Math.round(FIELD * dpr);
+    canvas.height = Math.round(FIELD * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    var pad = 16, gap = 14;
+    var topH = topbar ? topbar.offsetHeight : 40;
+    var availW = window.innerWidth  - pad * 2;
+    var availH = window.innerHeight - pad * 2 - topH - gap;
+    var size = Math.max(240, Math.min(FIELD, availW, availH));
+
+    canvas.style.width  = size + 'px';
+    canvas.style.height = size + 'px';
+  }
+
+  /* ================= 屏幕 → 场地坐标 ================= */
+  function toField(clientX, clientY) {
+    var rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    var s = FIELD / rect.width;
+    var x = (clientX - rect.left) * s;
+    var y = (clientY - rect.top)  * s;
+    x = Math.max(0, Math.min(FIELD, x));
+    y = Math.max(0, Math.min(FIELD, y));
+    return { x: x, y: y };
+  }
+
+  /* ================= 生成球 ================= */
+  function spawnBall() {
+    var r = 15 + Math.random() * 9;
+    var margin = r + 24;
+
+    var x = 0, y = 0, tries = 0;
+    do {
+      x = margin + Math.random() * Math.max(1, FIELD - margin * 2);
+      y = margin + Math.random() * Math.max(1, FIELD - margin * 2);
+      tries++;
+    } while (
+      tries < 40 &&
+      Math.sqrt((x - state.mouse.x) * (x - state.mouse.x) +
+                (y - state.mouse.y) * (y - state.mouse.y)) < 240
+    );
+
+    var ang = Math.random() * Math.PI * 2;
+    var speed = Math.min(430, 200 + Math.random() * 70 + ballCount * 12);
+
+    state.balls.push({
+      x: x, y: y, r: r,
+      vx: Math.cos(ang) * speed,
+      vy: Math.sin(ang) * speed,
+      color: COLORS[(Math.random() * COLORS.length) | 0],
+      appear: 0
+    });
+    ballCount++;
+  }
+
+  /* ================= 边界约束 ================= */
+  function clampToField(b) {
+    if (b.x - b.r < 0)     { b.x = b.r;         b.vx =  Math.abs(b.vx); }
+    if (b.x + b.r > FIELD) { b.x = FIELD - b.r; b.vx = -Math.abs(b.vx); }
+    if (b.y - b.r < 0)     { b.y = b.r;         b.vy =  Math.abs(b.vy); }
+    if (b.y + b.r > FIELD) { b.y = FIELD - b.r; b.vy = -Math.abs(b.vy); }
+  }
+
+  /* ================= 速度限制 ================= */
+  function limitSpeed(b) {
+    var sp = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+    if (sp < 0.0001) {
+      var a = Math.random() * Math.PI * 2;
+      b.vx = Math.cos(a) * MIN_SPEED;
+      b.vy = Math.sin(a) * MIN_SPEED;
+      return;
+    }
+    if (sp < MIN_SPEED) {
+      var k = MIN_SPEED / sp;
+      b.vx *= k; b.vy *= k;
+    } else if (sp > MAX_SPEED) {
+      var k2 = MAX_SPEED / sp;
+      b.vx *= k2; b.vy *= k2;
+    }
+  }
+
+  /* ============================================================
+     球与球碰撞：按半径平方作为质量，做冲量法弹性碰撞
+     ============================================================ */
+  function resolveBallCollisions() {
+    var balls = state.balls;
+    var n = balls.length;
+
+    for (var i = 0; i < n; i++) {
+      var a = balls[i];
+      var ra = a.r * a.appear;
+      if (ra <= 0.5) continue;
+
+      for (var j = i + 1; j < n; j++) {
+        var b = balls[j];
+        var rb = b.r * b.appear;
+        if (rb <= 0.5) continue;
+
+        var dx = b.x - a.x;
+        var dy = b.y - a.y;
+        var minDist = ra + rb;
+        var distSq = dx * dx + dy * dy;
+
+        if (distSq >= minDist * minDist) continue;
+
+        // 完全重合时给一个随机方向，避免除零
+        if (distSq < 0.0001) {
+          var ang0 = Math.random() * Math.PI * 2;
+          dx = Math.cos(ang0);
+          dy = Math.sin(ang0);
+          distSq = 1;
+        }
+
+        var dist = Math.sqrt(distSq);
+        var nx = dx / dist;
+        var ny = dy / dist;
+
+        // 质量 ∝ 半径²
+        var ma = a.r * a.r;
+        var mb = b.r * b.r;
+        var totalM = ma + mb;
+
+        // —— 位置分离（按质量反比推开，消除重叠）——
+        var overlap = minDist - dist;
+        var aPush = overlap * (mb / totalM);
+        var bPush = overlap * (ma / totalM);
+
+        a.x -= nx * aPush;
+        a.y -= ny * aPush;
+        b.x += nx * bPush;
+        b.y += ny * bPush;
+
+        // —— 速度冲量（弹性碰撞）——
+        var rvx = b.vx - a.vx;
+        var rvy = b.vy - a.vy;
+        var vn = rvx * nx + rvy * ny;
+
+        // vn > 0：两球正在分离，不必处理
+        if (vn > 0) continue;
+
+        var imp = -(1 + RESTITUTION) * vn / (1 / ma + 1 / mb);
+        var ix = imp * nx;
+        var iy = imp * ny;
+
+        a.vx -= ix / ma;
+        a.vy -= iy / ma;
+        b.vx += ix / mb;
+        b.vy += iy / mb;
+      }
+    }
+  }
+
+  /* ================= 更新 ================= */
+  function update(dt) {
+    // 加分：每 0.1 秒 +1
+    state.scoreAcc += dt;
+    while (state.scoreAcc >= TICK) {
+      state.scoreAcc -= TICK;
+      state.score++;
+    }
+
+    // 每 SPAWN_EVERY 秒多一个球
+    state.spawnTimer += dt;
+    if (state.spawnTimer >= SPAWN_EVERY) {
+      state.spawnTimer -= SPAWN_EVERY;
+      spawnBall();
+    }
+
+    // 实时新纪录提示
+    if (!state.newRecord && state.best > 0 && state.score > state.best) {
+      state.newRecord = true;
+      badge.classList.add('show');
+    }
+
+    // —— 移动 + 边界 ——
+    for (var i = 0; i < state.balls.length; i++) {
+      var b = state.balls[i];
+      b.appear = Math.min(1, b.appear + dt * 4);
+
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+
+      clampToField(b);
+    }
+
+    // —— 球与球碰撞（多次迭代处理堆叠）——
+    for (var it = 0; it < COLLISION_ITER; it++) {
+      resolveBallCollisions();
+
+      // 位置修正后可能越界，再约束一次
+      for (var k = 0; k < state.balls.length; k++) {
+        clampToField(state.balls[k]);
+      }
+    }
+
+    // —— 速度限制（防止碰撞后个别球变得过慢或过快）——
+    for (var m = 0; m < state.balls.length; m++) {
+      limitSpeed(state.balls[m]);
+    }
+
+    // —— 玩家碰撞检测（终局）——
+    var px = state.mouse.x;
+    var py = state.mouse.y;
+
+    for (var p = 0; p < state.balls.length; p++) {
+      var ball = state.balls[p];
+      var ddx = ball.x - px;
+      var ddy = ball.y - py;
+      var ddist = Math.sqrt(ddx * ddx + ddy * ddy);
+
+      if (ddist < ball.r * ball.appear + HIT_R) {
+        gameOver();
+        return;
+      }
+    }
+  }
+
+  /* ================= 绘制 ================= */
+  function playerColors() {
+    if (settings.theme === 'dark') {
+      return {
+        fill:      '#e2e8f0',
+        glow:      'rgba(226, 232, 240, 0.06)',
+        ring:      'rgba(226, 232, 240, 0.22)',
+        highlight: 'rgba(255, 255, 255, 0.9)'
+      };
+    }
+    return {
+      fill:      '#1f2937',
+      glow:      'rgba(31, 41, 55, 0.05)',
+      ring:      'rgba(31, 41, 55, 0.16)',
+      highlight: 'rgba(255, 255, 255, 0.55)'
+    };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, FIELD, FIELD);
+
+    var pc = playerColors();
+    var px = state.mouse.x;
+    var py = state.mouse.y;
+
+    // 玩家光晕
+    ctx.beginPath();
+    ctx.arc(px, py, PLAYER_R + 9, 0, Math.PI * 2);
+    ctx.fillStyle = pc.glow;
+    ctx.fill();
+
+    // 玩家外环
+    ctx.beginPath();
+    ctx.arc(px, py, PLAYER_R + 4, 0, Math.PI * 2);
+    ctx.strokeStyle = pc.ring;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 玩家主体
+    ctx.beginPath();
+    ctx.arc(px, py, PLAYER_R, 0, Math.PI * 2);
+    ctx.fillStyle = pc.fill;
+    ctx.fill();
+
+    // 高光
+    ctx.beginPath();
+    ctx.arc(px - 3, py - 3, 3.2, 0, Math.PI * 2);
+    ctx.fillStyle = pc.highlight;
+    ctx.fill();
+
+    // 小球
+    for (var i = 0; i < state.balls.length; i++) {
+      var b = state.balls[i];
+      var r = b.r * b.appear;
+      if (r <= 0.5) continue;
+
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      ctx.shadowColor = b.color + '70';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = b.color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.beginPath();
+      ctx.arc(b.x - r * 0.32, b.y - r * 0.32, r * 0.32, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.fill();
+    }
+  }
+
+  /* ================= HUD ================= */
+  function updateHUD() {
+    elScore.textContent = state.score;
+    elBest.textContent  = state.best;
+    elBalls.textContent = state.balls.length;
+    elNext.textContent  = Math.max(0, SPAWN_EVERY - state.spawnTimer).toFixed(1) + 's';
+  }
+
+  /* ================= 主循环 ================= */
+  var lastT = 0;
+  function loop(t) {
+    window.requestAnimationFrame(loop);
+
+    if (!lastT) lastT = t;
+    var dt = (t - lastT) / 1000;
+    lastT = t;
+    if (dt > 0.05) dt = 0.05;
+
+    if (state.running) {
+      update(dt);
+      updateHUD();
+    }
+    draw();
+  }
+
+  /* ================= 遮罩渲染 ================= */
+  function renderOverlay() {
+    if (!overlayMode) {
+      overlay.classList.remove('show');
+      overlay.innerHTML = '';
+      return;
+    }
+
+    var html = '';
+
+    if (overlayMode === 'start') {
+      html =
+        '<div class="card">' +
+          '<div class="emoji">🎯</div>' +
+          '<h1>' + t('startTitle') + '</h1>' +
+          '<p class="desc">' + t('startDesc', { size: FIELD, every: SPAWN_EVERY }) + '</p>' +
+          '<button class="main-btn" id="startBtn" type="button">' + t('startBtn') + '</button>' +
+          '<p class="best">' + t('bestLabel') + ' <b>' + state.best + '</b></p>' +
+        '</div>';
+    } else if (overlayMode === 'over') {
+      var isRecord = state.lastRecord;
+      html =
+        '<div class="card">' +
+          '<div class="emoji">' + (isRecord ? '🎉' : '💥') + '</div>' +
+          '<h1 class="' + (isRecord ? 'record' : '') + '">' +
+            (isRecord ? t('recordTitle') : t('overTitle')) +
+          '</h1>' +
+          '<div class="scoreBig">' + state.lastScore + '</div>' +
+          '<p class="desc">' +
+            (isRecord ? t('recordDesc') : t('overDesc', { best: state.best })) +
+          '</p>' +
+          '<button class="main-btn" id="restartBtn" type="button">' + t('restartBtn') + '</button>' +
+        '</div>';
+    }
+
+    overlay.innerHTML = html;
+    overlay.classList.add('show');
+
+    var btn = document.getElementById(overlayMode === 'start' ? 'startBtn' : 'restartBtn');
+    if (btn) btn.addEventListener('click', startGame);
+  }
+
+  /* ================= 流程 ================= */
+  function startGame() {
+    overlayMode = null;
+    overlay.classList.remove('show');
+    overlay.innerHTML = '';
+    badge.classList.remove('show');
+
+    state.running = true;
+    state.score = 0;
+    state.scoreAcc = 0;
+    state.spawnTimer = 0;
+    state.balls = [];
+    state.newRecord = false;
+    ballCount = 0;
+
+    document.body.classList.add('playing');
+
+    spawnBall();
+    updateHUD();
+    lastT = 0;
+  }
+
+  function gameOver() {
+    state.running = false;
+    document.body.classList.remove('playing');
+
+    var isRecord = state.score > state.best;
+    state.lastScore = state.score;
+    state.lastRecord = isRecord;
+
+    if (isRecord) {
+      state.best = state.score;
+      storage.set(STORAGE_BEST, String(state.best));
+    }
+    elBest.textContent = state.best;
+
+    overlayMode = 'over';
+    renderOverlay();
+  }
+
+  /* ================= 输入 ================= */
+  function handlePointer(clientX, clientY) {
+    var p = toField(clientX, clientY);
+    if (p) { state.mouse.x = p.x; state.mouse.y = p.y; }
+  }
+
+  window.addEventListener('mousemove', function (e) {
+    handlePointer(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('touchmove', function (e) {
+    var tch = e.touches[0];
+    if (!tch) return;
+    handlePointer(tch.clientX, tch.clientY);
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('touchstart', function (e) {
+    var tch = e.touches[0];
+    if (!tch) return;
+    handlePointer(tch.clientX, tch.clientY);
+  }, { passive: true });
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('load', resize);
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' && !state.running && overlayMode) {
+      e.preventDefault();
+      startGame();
+    }
+  });
+
+  /* ================= 主题 / 语言切换 ================= */
+  themeBtn.addEventListener('click', function () {
+    settings.theme = (settings.theme === 'light') ? 'dark' : 'light';
+    storage.set(STORAGE_THM, settings.theme);
+    applyTheme();
+  });
+
+  langBtn.addEventListener('click', function () {
+    var i = LANGS.indexOf(settings.lang);
+    settings.lang = LANGS[(i + 1) % LANGS.length];
+    storage.set(STORAGE_LANG, settings.lang);
+    applyLang();
+  });
+
+  /* ================= 启动 ================= */
+  (function loadBest() {
+    var n = parseInt(storage.get(STORAGE_BEST), 10);
+    state.best = (isFinite(n) && n > 0) ? n : 0;
+  })();
+
+  applyTheme();
+
+  overlayMode = 'start';
+  applyLang();          // 内部会调用 renderOverlay() 与 resize()
+
+  elBest.textContent = state.best;
+  updateHUD();
+
+  window.requestAnimationFrame(loop);
+  window.requestAnimationFrame(resize);
+
+})();
+</script>
+</body>
+</html>
